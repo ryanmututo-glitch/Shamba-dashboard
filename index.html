@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shamba Monitor - Group 4D</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+<h1>Shamba Monitor</h1>
+<p id="subtitle">Busia County smallholder farm node</p>
+<nav>
+<button id="tab-farmer" class="tab active">Farmer</button>
+<button id="tab-researcher" class="tab">Researcher</button>
+<button id="lang" class="tab">Kiswahili</button>
+</nav>
+</header>
+<main>
+<!-- FARMER VIEW -->
+<section id="view-farmer">
+<div id="offline-banner" class="banner" hidden></div>
+<div class="cards">
+<div class="card big" id="card-soil">
+<h2 data-i18n="soil">Soil moisture</h2>
+<div class="value" id="soil-word">-</div>
+<div class="sub" id="soil-detail"></div>
+</div>
+<div class="card big">
+<h2 data-i18n="rain24">Rain, last 24 hours</h2>
+<div class="value" id="rain24">-</div>
+<div class="sub" id="rain7"></div>
+</div>
+<div class="card big">
+<h2 data-i18n="temp">Temperature now</h2>
+<div class="value" id="temp-now">-</div>
+<div class="sub" id="hum-now"></div>
+</div>
+</div>
+<p class="updated" id="updated"></p>
+<h2 data-i18n="logTitle">Farm log</h2>
+<form id="log-form">
+<label>Date <input type="date" id="log-date" required></label>
+<label>Crop
+<select id="log-crop">
+<option>Maize</option><option>Beans</option><option>Sweet potato</option><option>Other</option>
+</select>
+</label>
+<label>What did you do?
+<select id="log-action">
+<option>Planted</option><option>Fertilizer</option><option>Irrigated</option>
+<option>Pest seen</option><option>Harvested</option>
+</select>
+</label>
+<label>Notes <input type="text" id="log-notes" placeholder="optional"></label>
+<button type="submit">Save entry</button>
+</form>
+<ul id="log-list"></ul>
+</section>
+<!-- RESEARCHER VIEW -->
+<section id="view-researcher" hidden>
+<div class="toolbar">
+<label>Range
+<select id="range">
+<option value="1">Last 24 hours</option>
+<option value="3">Last 3 days</option>
+<option value="7" selected>Last 7 days</option>
+</select>
+</label>
+<button id="export">Download CSV</button>
+<button id="live">Simulate live data</button>
+</div>
+<div class="grid">
+<div class="chart-card"><h3>Soil moisture (%)</h3><div id="chart-soil"></div></div>
+<div class="chart-card"><h3>Rainfall (mm per 10 min)</h3><div id="chart-rain"></div></div>
+<div class="chart-card"><h3>Air temperature (&deg;C)</h3><div id="chart-temp"></div></div>
+<div class="chart-card"><h3>Pressure (hPa)</h3><div id="chart-pres"></div></div>
+<div class="chart-card"><h3>Battery (V)</h3><div id="chart-batt"></div></div>
+<div class="chart-card"><h3>Signal (dBm)</h3><div id="chart-rssi"></div></div>
+</div>
+<h3>Device health</h3>
+<table id="health"></table>
+</section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
