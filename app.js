@@ -1,7 +1,18 @@
 // Shamba Monitor - Group 4D dashboard (fake-data version)
 // To go live later, change DATA_URL (see section "Swapping in real data").
-const DATA_URL = "data/readings.json";
-const OFFLINE_AFTER_MIN = 30; // node counts as offline after this long with no reading
+// Supabase configuration
+const SUPABASE_URL =
+  "https://mcdyegejqezsdelwuofv.supabase.co";
+
+const SUPABASE_KEY =
+  "YOUR_SUPABASE_PUBLISHABLE_KEY";
+
+const DEVICE_ID = "node-01";
+
+// Refresh every 15 seconds
+const REFRESH_INTERVAL = 15000;
+
+const OFFLINE_AFTER_MIN = 30;
 
 // PLACEHOLDER thresholds. Replace after soil calibration in the lab (Lab 6).
 const SOIL_DRY_BELOW = 25;
@@ -60,7 +71,7 @@ function renderFarmer() {
   card.className = "card big " + status;
   document.getElementById("soil-word").textContent = status === "none" ? t.noData : t[status];
   document.getElementById("soil-detail").textContent =
-    `${t.shallow}: ${fmt(latest.soil_moist_10cm_pct)}%  ${t.deep}: ${fmt(latest.soil_moist_30cm_pct)}%`;
+  `Moisture level: ${fmt(latest.soil_moist_10cm_pct)}%`;
   document.getElementById("rain24").textContent = fmt(rainSum(readings, 24, nowMs)) + " mm";
   document.getElementById("rain7").textContent = `${t.rain7} ${fmt(rainSum(readings, 168, nowMs))} mm`;
   document.getElementById("temp-now").textContent = fmt(latest.air_temp_c) + " °C";
@@ -133,8 +144,6 @@ function renderResearcher() {
   lineChart("chart-soil", rows, "soil_moist_10cm_pct", { color: "#1f5f99" });
   lineChart("chart-rain", rows, "rain_mm_10min", { color: "#1f5f99", bars: true, zero: true, dec: 1 });
   lineChart("chart-temp", rows, "air_temp_c", { color: "#b4531f" });
-  lineChart("chart-pres", rows, "pressure_hpa", { color: "#6b4f9a" });
-  lineChart("chart-batt", rows, "batt_v", { color: "#2f6b4f", dec: 2 });
   lineChart("chart-rssi", rows, "rssi_dbm", { color: "#66726b", dec: 0 });
   renderHealth();
 }
@@ -148,13 +157,26 @@ function renderHealth() {
   // Missed readings: gaps in the sequence number inside the last 7 days
   let missed = 0;
   for (let i = 1; i < readings.length; i++) missed += Math.max(0, readings[i].seq - readings[i - 1].seq - 1);
-  const nulls = readings.reduce((n, r) => n + Object.values(r).filter((v) => v === null).length, 0);
+  const monitoredFields = [
+  "air_temp_c",
+  "humidity_pct",
+  "soil_moist_10cm_pct",
+  "rain_mm_10min",
+  "rssi_dbm"
+];
+
+const nulls = readings.reduce(
+  (total, reading) =>
+    total + monitoredFields.filter(
+      field => reading[field] == null
+    ).length,
+  0
+);
 
   const rows = [
     ["Device", latest.device_id],
     ["Status", mins > OFFLINE_AFTER_MIN ? `OFFLINE (${mins} min since last reading)` : "Online"],
     ["Last reading", eat(toDate(latest))],
-    ["Battery", fmt(latest.batt_v, 2) + " V"],
     ["Signal", fmt(latest.rssi_dbm, 0) + " dBm"],
     ["Firmware", latest.fw],
     ["Readings loaded", readings.length],
@@ -258,23 +280,102 @@ function applyLang() {
   renderFarmer();
 }
 
+// ---------- Supabase data fetching ----------
+async function fetchSupabaseReadings() {
+  const url =
+    `${SUPABASE_URL}/rest/v1/readings` +
+    `?select=*` +
+    `&device_id=eq.${encodeURIComponent(DEVICE_ID)}` +
+    `&order=ts_utc.desc.nullslast` +
+    `&limit=1000`;
+
+  const response = await fetch(url, {
+    headers: {
+      "apikey":"sb_publishable_x8P8D39H5k22GmEU9-KqtA_b9YpH55r",
+      "Accept": "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(
+      `Supabase error ${response.status}: ${error}`
+    );
+  }
+
+  const data = await response.json();
+
+  // Ignore records with missing or invalid timestamps
+  const validData = data.filter(
+    r => r.ts_utc &&
+      !Number.isNaN(new Date(r.ts_utc).getTime())
+  );
+
+  // Your existing charts expect oldest -> newest
+  readings = validData.reverse();
+
+  console.log(
+    `Loaded ${readings.length} readings from Supabase`
+  );
+
+  renderFarmer();
+
+  if (!document.getElementById("view-researcher").hidden) {
+    renderResearcher();
+  }
+
+  if (!readings.length) {
+    document.getElementById("updated").textContent =
+      "No timestamped sensor readings available.";
+  }
+}
+
 // ---------- start ----------
 async function init() {
-  document.getElementById("tab-farmer").onclick = () => show("farmer");
-  document.getElementById("tab-researcher").onclick = () => show("researcher");
-  document.getElementById("lang").onclick = () => { lang = lang === "en" ? "sw" : "en"; applyLang(); };
-  document.getElementById("range").onchange = renderResearcher;
-  document.getElementById("export").onclick = downloadCsv;
-  document.getElementById("live").onclick = toggleLive;
-  document.getElementById("log-form").onsubmit = onLogSubmit;
-  document.getElementById("log-date").value = new Date().toISOString().slice(0, 10);
-  try {
-    const res = await fetch(DATA_URL);
-    readings = await res.json();
-  } catch (e) {
-    document.getElementById("updated").textContent =
-      "Could not load data. Open the page through a local server (see the guide), not by double-clicking the file.";
+
+  document.getElementById("tab-farmer").onclick =
+    () => show("farmer");
+
+  document.getElementById("tab-researcher").onclick =
+    () => show("researcher");
+
+  document.getElementById("lang").onclick = () => {
+    lang = lang === "en" ? "sw" : "en";
+    applyLang();
+  };
+
+  document.getElementById("range").onchange =
+    renderResearcher;
+
+  document.getElementById("export").onclick =
+    downloadCsv;
+
+  document.getElementById("live").onclick =
+    toggleLive;
+
+  document.getElementById("log-form").onsubmit =
+    onLogSubmit;
+
+  document.getElementById("log-date").value =
+    new Date().toISOString().slice(0, 10);
+
+  // Load real data from Supabase
+  async function refreshData() {
+    try {
+      await fetchSupabaseReadings();
+    } catch (error) {
+      console.error("Failed to load data:", error);
+
+      document.getElementById("updated").textContent =
+        "Error loading Supabase data. Check console.";
+    }
   }
+
+  await refreshData();
+
+  // Poll Supabase automatically
+  setInterval(refreshData, REFRESH_INTERVAL);
+
   applyLang();
   renderLog();
 }
